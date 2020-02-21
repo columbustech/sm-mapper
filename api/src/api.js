@@ -50,7 +50,7 @@ router.post('/map', function(req, res) {
         form: {
           imagePath: containerUrl,
           fnName: fnName,
-          replicas: "3"
+          replicas: "2"
         }
       };
       request(options, function(err, res, body) {
@@ -69,6 +69,7 @@ router.post('/map', function(req, res) {
         request(options, function(err, res, body) {
           if(JSON.parse(body).fnStatus === "Running") {
             resolve(true);
+            console.log("container ready");
           } else {
             setTimeout(waitForContainer, 500);
           }
@@ -77,11 +78,6 @@ router.post('/map', function(req, res) {
     });
   }
 
-  createMapFns(containerUrl).then(ensureFnActive(fnName)).then({
-  });
-
-
-  /*
   async function listCDriveItems(cDrivePath) {
     return new Promise(resolve => {
       var options = {
@@ -112,21 +108,45 @@ router.post('/map', function(req, res) {
     });
   }
 
-  async function mapContainer(cDrivePath) {
+  async function mapToContainer(downloadUrl) {
+    return new Promise(resolve => {
+      var options = {
+        url: `http://${fnName}/process/`,
+        method: "POST",
+        form: {
+          downloadUrl: downloadUrl
+        }
+      };
+      console.log("launch container fn");
+      request(options, function(err, res, body) {
+        resolve(JSON.parse(body).output);
+      });
+    });
   }
 
-  listCDriveItems(inputDir).then(tables => {
-    const promises = [];
-    tables.forEach(dobj => {
-      promises.push(getDownloadUrl(`${inputDir}/${dobj.name}`));
-    });
-    Promise.all(promises).then(values => {
-      res.json({
-        downloadUrls: values
+  createMapFns(containerUrl).then(() => {
+    const promises = []
+    promises.push(ensureFnActive(fnName));
+    listCDriveItems(inputDir).then(tables => {
+      console.log("list obtained");
+      tables.forEach(dobj => {
+        promises.push(getDownloadUrl(`${inputDir}/${dobj.name}`));
+      });
+      const oPromises = []
+      Promise.all(promises).then(durls => {
+        console.log("All durls obtained");
+        console.log(durls[0]);
+        durls.shift();
+        console.log(durls[0]);
+        durls.forEach(durl => {
+          oPromises.push(mapToContainer(durl));
+        });
+        Promise.all(oPromises).then(values => {
+          console.log(values.flat());
+        });
       });
     });
   });
-  */
 });
 
 module.exports = router;

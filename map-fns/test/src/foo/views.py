@@ -14,4 +14,4 @@ class ProcessView(APIView):
     def post(self, request): 
         downloadUrl = request.data['downloadUrl']
         df = process(downloadUrl)
-        return Response(df.to_dict('records'), status=status.HTTP_200_OK)
+        return Response({"output": df.to_dict('records')}, status=status.HTTP_200_OK)
