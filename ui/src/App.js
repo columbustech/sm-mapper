@@ -143,6 +143,14 @@ class App extends React.Component {
           </button>
         );
       }
+      let cdriveLink;
+      if(this.state.fnStatus === "complete") {
+        cdriveLink = (
+          <div className="h5 mt-3 font-weight-normal">
+            Output saved! <a href={this.state.specs.cdriveUrl}> View in CDrive </a>
+          </div>
+        );
+      }
       return(
         <div className="app-container">
           <div className="map-form-container">
@@ -155,6 +163,7 @@ class App extends React.Component {
             <input type="text" placeholder="No of container replicas" className="map-form-item"
               value={this.state.replicas} onChange={this.handleReplicasChange} />
             {mapButton}
+            {cdriveLink}
           </div>
         </div>
       );
