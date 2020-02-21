@@ -3,6 +3,8 @@ const router = express.Router();
 const request = require('request');
 const createCsvWriter = require('csv-writer').createObjectCsvWriter;
 const fs = require('fs');
+const mongo = require('mongodb').MongoClient;
+const mongoUrl = 'mongodb://localhost:27017';
 
 router.get('/specs', function(req, res) {
   res.json({
@@ -40,11 +42,20 @@ router.post('/map', function(req, res) {
   var outputDir = req.body.outputDir;
   var replicas = req.body.replicas;
 
-  res.json({
-    message: "success"
-  });
+  var uid = [...Array(10)].map(i=>(~~(Math.random()*36)).toString(36)).join('');
 
-  var fnName = `sm-mapfn-${process.env.COLUMBUS_USERNAME}`;
+
+  var fnName = `mapfn-${process.env.COLUMBUS_USERNAME}-${uid}`;
+
+  mongo.connect(mongoUrl, function(err, client) {
+    const db = client.db('mapper');
+    const collection = db.collection('mapfns');
+    collection.insertOne({uid: uid, username: process.env.COLUMBUS_USERNAME, fnName: fnName, fnStatus: "executing"}, (insErr, insRes) => {
+      res.json({
+        uid: uid
+      });
+    });
+  });
 
   function createMapFns(mapfnUrl) {
     return new Promise(resolve => {
@@ -127,6 +138,13 @@ router.post('/map', function(req, res) {
   }
 
   function uploadComplete(uploadErr, uploadRes, uploadBody) {
+    mongo.connect(mongoUrl, function(connectErr, client) {
+      const db = client.db('mapper');
+      const taskCollection = db.collection('mapfns');
+      taskCollection.updateOne({uid: uid}, {$set: {fnStatus:"complete"}}, function(upErr, upRes) {
+        client.close();
+      });
+    });
   }
 
   function uploadToCDrive(localPath, cDrivePath) {
@@ -176,6 +194,19 @@ router.post('/map', function(req, res) {
         Promise.all(oPromises).then(values => {
           saveLabels(values.flat(), "/output.csv").then(() => uploadToCDrive("/output.csv", outputDir));
         });
+      });
+    });
+  });
+});
+
+router.get('/status', function(req, res) {
+  var uid = req.query.uid;
+  mongo.connect(mongoUrl, function(connectErr, client) {
+    const db = client.db('mapper');
+    const collection = db.collection('mapfns');
+    collection.findOne({uid: uid}, function(findErr, doc) {
+      res.json({
+        fnStatus: doc.fnStatus
       });
     });
   });

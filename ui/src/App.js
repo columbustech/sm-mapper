@@ -12,8 +12,10 @@ class App extends React.Component {
       outputDir: "",
       replicas: "",
       isLoggedIn: false,
+      uid: "",
+      fnStatus: "none",
+      fnStatusPollId: 0,
       specs: {},
-
     };
     this.getSpecs = this.getSpecs.bind(this);
     this.authenticateUser = this.authenticateUser.bind(this);
@@ -22,6 +24,7 @@ class App extends React.Component {
     this.handleOutputDirChange = this.handleOutputDirChange.bind(this);
     this.handleReplicasChange = this.handleReplicasChange.bind(this);
     this.handleMap = this.handleMap.bind(this);
+    this.fnStatusPoll = this.fnStatusPoll.bind(this);
   }
   getSpecs() {
     const request = axios({
@@ -79,6 +82,7 @@ class App extends React.Component {
     this.setState({replicas: e.target.value});
   }
   handleMap() {
+    this.setState({fnStatus: "executing"});
     const cookies = new Cookies();
     const request = axios({
       method: 'POST',
@@ -93,7 +97,26 @@ class App extends React.Component {
     });
     request.then(
       response => {
-        console.log("success");
+        this.setState({ 
+          uid: response.data.uid,
+          fnStatusPollId: setInterval(() => this.fnStatusPoll(), 500)
+        });
+      },
+    );
+  }
+  fnStatusPoll() {
+    const request = axios({
+      method: 'GET',
+      url: `${this.state.specs.cdriveUrl}app/${this.state.specs.username}/sm-mapper/api/status?uid=${this.state.uid}`
+    });
+    request.then(
+      response => {
+        if(response.data.fnStatus === "complete") {
+          clearInterval(this.state.fnStatusPollId);
+          this.setState({
+            fnStatus: "complete"
+          });
+        }
       },
     );
   }
@@ -105,6 +128,21 @@ class App extends React.Component {
       this.authenticateUser();
       return(null);
     } else {
+      let mapButton;
+      if (this.state.fnStatus === "executing") {
+        mapButton = (
+          <button className="btn btn-primary map-form-item" disabled>
+            <span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span>
+            Map
+          </button>
+        );
+      } else {
+        mapButton = (
+          <button className="btn btn-primary map-form-item" onClick={this.handleMap}>
+            Map
+          </button>
+        );
+      }
       return(
         <div className="app-container">
           <div className="map-form-container">
@@ -116,7 +154,7 @@ class App extends React.Component {
               value={this.state.outputDir} onChange={this.handleOutputDirChange} />
             <input type="text" placeholder="No of container replicas" className="map-form-item"
               value={this.state.replicas} onChange={this.handleReplicasChange} />
-            <button className="btn btn-primary map-form-item" onClick={this.handleMap}>Map</button>
+            {mapButton}
           </div>
         </div>
       );
