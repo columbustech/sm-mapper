@@ -1,6 +1,8 @@
 const express = require('express');
 const router = express.Router();
 const request = require('request');
+const createCsvWriter = require('csv-writer').createObjectCsvWriter;
+const fs = require('fs');
 
 router.get('/specs', function(req, res) {
   res.json({
@@ -42,7 +44,7 @@ router.post('/map', function(req, res) {
 
   var fnName = `sm-mapfn-${process.env.COLUMBUS_USERNAME}`;
 
-  async function createMapFns(mapfnUrl) {
+  function createMapFns(mapfnUrl) {
     return new Promise(resolve => {
       var options = {
         url: "http://localhost:8080/create-map-functions",
@@ -59,7 +61,7 @@ router.post('/map', function(req, res) {
     });
   }
 
-  async function ensureFnActive(fnName) {
+  function ensureFnActive(fnName) {
     return new Promise(resolve => {
       (function waitForContainer() {
         var options = {
@@ -69,7 +71,6 @@ router.post('/map', function(req, res) {
         request(options, function(err, res, body) {
           if(JSON.parse(body).fnStatus === "Running") {
             resolve(true);
-            console.log("container ready");
           } else {
             setTimeout(waitForContainer, 500);
           }
@@ -78,7 +79,7 @@ router.post('/map', function(req, res) {
     });
   }
 
-  async function listCDriveItems(cDrivePath) {
+  function listCDriveItems(cDrivePath) {
     return new Promise(resolve => {
       var options = {
         url: `${process.env.CDRIVE_API_URL}list-recursive/?path=${cDrivePath}`,
@@ -93,7 +94,7 @@ router.post('/map', function(req, res) {
     });
   }
 
-  async function getDownloadUrl(cDrivePath) {
+  function getDownloadUrl(cDrivePath) {
     return new Promise(resolve => {
       var options = {
         url: `${process.env.CDRIVE_API_URL}download/?path=${cDrivePath}`,
@@ -108,7 +109,7 @@ router.post('/map', function(req, res) {
     });
   }
 
-  async function mapToContainer(downloadUrl) {
+  function mapToContainer(downloadUrl) {
     return new Promise(resolve => {
       var options = {
         url: `http://${fnName}/process/`,
@@ -117,32 +118,61 @@ router.post('/map', function(req, res) {
           downloadUrl: downloadUrl
         }
       };
-      console.log("launch container fn");
       request(options, function(err, res, body) {
         resolve(JSON.parse(body).output);
       });
     });
   }
 
+  function uploadComplete(uploadErr, uploadRes, uploadBody) {
+  }
+
+  function uploadToCDrive(localPath, cDrivePath) {
+    const uploadOptions = {
+      url: `${process.env.CDRIVE_API_URL}upload/`,
+      method: 'POST',
+      formData: {
+        path: cDrivePath,
+        file: {
+          value: fs.createReadStream(localPath),
+          options: {
+            filename: 'output.csv',
+            contentType: 'text/csv'
+          }
+        }
+      },
+      headers: {
+        'Authorization': `Bearer ${accessToken}`
+      }
+    };
+    request(uploadOptions, uploadComplete);
+  }
+
+  function saveLabels(results, localPath) {
+    var header = Object.keys(results[0]).map(colName => ({id: colName, title: colName})); 
+    const csvWriter = createCsvWriter({
+      path: localPath,
+      header: header
+    });
+    return csvWriter.writeRecords(results);
+  }
+  
+
   createMapFns(containerUrl).then(() => {
     const promises = []
     promises.push(ensureFnActive(fnName));
     listCDriveItems(inputDir).then(tables => {
-      console.log("list obtained");
       tables.forEach(dobj => {
         promises.push(getDownloadUrl(`${inputDir}/${dobj.name}`));
       });
       const oPromises = []
       Promise.all(promises).then(durls => {
-        console.log("All durls obtained");
-        console.log(durls[0]);
         durls.shift();
-        console.log(durls[0]);
         durls.forEach(durl => {
           oPromises.push(mapToContainer(durl));
         });
         Promise.all(oPromises).then(values => {
-          console.log(values.flat());
+          saveLabels(values.flat(), "/output.csv").then(() => uploadToCDrive("/output.csv", "users/kaushik/courses/csv"));
         });
       });
     });
