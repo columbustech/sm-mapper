@@ -132,8 +132,8 @@ class App extends React.Component {
       if (this.state.fnStatus === "executing") {
         mapButton = (
           <button className="btn btn-primary map-form-item" disabled>
-            <span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span>
-            Map
+            <span className="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span>
+            <span className="ml-2">Map</span>
           </button>
         );
       } else {
