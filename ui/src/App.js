@@ -9,6 +9,8 @@ class App extends React.Component {
     this.state = {
       inputDir: "",
       containerUrl: "",
+      outputDir: "",
+      replicas: "",
       isLoggedIn: false,
       specs: {},
 
@@ -17,6 +19,8 @@ class App extends React.Component {
     this.authenticateUser = this.authenticateUser.bind(this);
     this.handleInputDirChange = this.handleInputDirChange.bind(this);
     this.handleContainerUrlChange = this.handleContainerUrlChange.bind(this);
+    this.handleOutputDirChange = this.handleOutputDirChange.bind(this);
+    this.handleReplicasChange = this.handleReplicasChange.bind(this);
     this.handleMap = this.handleMap.bind(this);
   }
   getSpecs() {
@@ -68,6 +72,12 @@ class App extends React.Component {
   handleContainerUrlChange(e) {
     this.setState({containerUrl: e.target.value});
   }
+  handleOutputDirChange(e) {
+    this.setState({outputDir: e.target.value});
+  }
+  handleReplicasChange(e) {
+    this.setState({replicas: e.target.value});
+  }
   handleMap() {
     const cookies = new Cookies();
     const request = axios({
@@ -76,6 +86,8 @@ class App extends React.Component {
       data: {
         inputDir: this.state.inputDir,
         containerUrl: this.state.containerUrl,
+        outputDir: this.state.outputDir,
+        replicas: this.state.replicas,
         accessToken: cookies.get('sm_token')
       }
     });
@@ -95,11 +107,17 @@ class App extends React.Component {
     } else {
       return(
         <div className="app-container">
-          <input type="text" placeholder="Input directory path"
-            value={this.state.inputDir} onChange={this.handleInputDirChange} />
-          <input type="text" placeholder="Container URL"
-            value={this.state.containerUrl} onChange={this.handleContainerUrlChange} />
-          <button className="btn btn-primary" onClick={this.handleMap}>Map</button>
+          <div className="map-form-container">
+            <input type="text" placeholder="CDrive input folder path" className="map-form-item"
+              value={this.state.inputDir} onChange={this.handleInputDirChange} />
+            <input type="text" placeholder="Container URL" className="map-form-item"
+              value={this.state.containerUrl} onChange={this.handleContainerUrlChange} />
+            <input type="text" placeholder="CDrive output folder path" className="map-form-item"
+              value={this.state.outputDir} onChange={this.handleOutputDirChange} />
+            <input type="text" placeholder="No of container replicas" className="map-form-item"
+              value={this.state.replicas} onChange={this.handleReplicasChange} />
+            <button className="btn btn-primary map-form-item" onClick={this.handleMap}>Map</button>
+          </div>
         </div>
       );
     }

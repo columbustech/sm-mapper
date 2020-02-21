@@ -34,9 +34,11 @@ router.post('/access-token', function(req, res) {
 });
 
 router.post('/map', function(req, res) {
-  var inputDir = req.body.inputDir;
   var accessToken = req.body.accessToken;
+  var inputDir = req.body.inputDir;
   var containerUrl = req.body.containerUrl;
+  var outputDir = req.body.outputDir;
+  var replicas = req.body.replicas;
 
   res.json({
     message: "success"
@@ -52,7 +54,7 @@ router.post('/map', function(req, res) {
         form: {
           imagePath: containerUrl,
           fnName: fnName,
-          replicas: "2"
+          replicas: replicas
         }
       };
       request(options, function(err, res, body) {
@@ -172,7 +174,7 @@ router.post('/map', function(req, res) {
           oPromises.push(mapToContainer(durl));
         });
         Promise.all(oPromises).then(values => {
-          saveLabels(values.flat(), "/output.csv").then(() => uploadToCDrive("/output.csv", "users/kaushik/courses/csv"));
+          saveLabels(values.flat(), "/output.csv").then(() => uploadToCDrive("/output.csv", outputDir));
         });
       });
     });
