@@ -32,4 +32,6 @@ RUN npm run build
 
 COPY debug/entrypoint.sh /usr/local/bin/
 
+WORKDIR /api
+
 ENTRYPOINT ["entrypoint.sh"]

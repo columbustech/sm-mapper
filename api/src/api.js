@@ -107,21 +107,6 @@ router.post('/map', function(req, res) {
     });
   }
 
-  function getDownloadUrl(cDrivePath) {
-    return new Promise(resolve => {
-      var options = {
-        url: `${process.env.CDRIVE_API_URL}download/?path=${cDrivePath}`,
-        method: 'GET',
-        headers: {
-          'Authorization': `Bearer ${accessToken}`
-        }
-      };
-      request(options, function(err, res, body) {
-        resolve(JSON.parse(body).download_url);
-      });
-    });
-  }
-
   function deleteMapFns(){
     var options = {
       url: "http://localhost:8080/delete-map-functions",
@@ -134,13 +119,14 @@ router.post('/map', function(req, res) {
     });
   }
 
-  function mapToContainer(downloadUrl) {
+  function mapToContainer(inputFilePath) {
     return new Promise(resolve => {
       var options = {
         url: `http://${fnName}/process/`,
         method: "POST",
         form: {
-          downloadUrl: downloadUrl
+          downloadUrl: `${process.env.CDRIVE_API_URL}download/?path=${inputFilePath}`,
+          accessToken: accessToken
         }
       };
       request(options, function(err, res, body) {
@@ -191,22 +177,17 @@ router.post('/map', function(req, res) {
   
 
   createMapFns(containerUrl).then(() => {
-    const promises = []
-    promises.push(ensureFnActive(fnName));
-    listCDriveItems(inputDir).then(tables => {
+    const p1 = ensureFnActive(fnName);
+    const p2 = listCDriveItems(inputDir);
+    const promises = [];
+    Promise.all([p1,p2]).then(values => {
+      var tables = values[1];
       tables.forEach(dobj => {
-        promises.push(getDownloadUrl(`${inputDir}/${dobj.name}`));
+        promises.push(mapToContainer(`${inputDir}/${dobj.name}`));
       });
-      const oPromises = []
-      Promise.all(promises).then(durls => {
-        durls.shift();
-        durls.forEach(durl => {
-          oPromises.push(mapToContainer(durl));
-        });
-        Promise.all(oPromises).then(values => {
-          deleteMapFns();
-          saveLabels(values.flat(), "/output.csv").then(() => uploadToCDrive("/output.csv", outputDir));
-        });
+      Promise.all(promises).then(values => {
+        deleteMapFns();
+        saveLabels(values.flat(), "/output.csv").then(() => uploadToCDrive("/output.csv", outputDir));
       });
     });
   });
