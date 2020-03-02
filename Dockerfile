@@ -20,6 +20,8 @@ COPY api/package-lock.json .
 COPY api/src/ ./src/
 RUN npm install
 
+RUN npm install pm2 -g
+
 WORKDIR /ui
 COPY ui/package.json .
 COPY ui/package-lock.json .

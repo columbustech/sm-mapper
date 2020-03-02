@@ -144,7 +144,6 @@ router.post('/map', function(req, res) {
         }
       };
       request(options, function(err, res, body) {
-        deleteMapFns();
         resolve(JSON.parse(body).output);
       });
     });
@@ -205,6 +204,7 @@ router.post('/map', function(req, res) {
           oPromises.push(mapToContainer(durl));
         });
         Promise.all(oPromises).then(values => {
+          deleteMapFns();
           saveLabels(values.flat(), "/output.csv").then(() => uploadToCDrive("/output.csv", outputDir));
         });
       });
