@@ -146,7 +146,7 @@ class App extends React.Component {
       let cdriveLink;
       if(this.state.fnStatus === "complete") {
         cdriveLink = (
-          <div className="h5 mt-3 font-weight-normal">
+          <div className="h5 mt-3 font-weight-normal map-form-item">
             Output saved! <a href={this.state.specs.cdriveUrl}> View in CDrive </a>
           </div>
         );
