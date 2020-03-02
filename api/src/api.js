@@ -122,6 +122,18 @@ router.post('/map', function(req, res) {
     });
   }
 
+  function deleteMapFns(){
+    var options = {
+      url: "http://localhost:8080/delete-map-functions",
+      method: "POST",
+      form: {
+        fnName: fnName
+      }
+    };
+    request(options, function(err, res, body) {
+    });
+  }
+
   function mapToContainer(downloadUrl) {
     return new Promise(resolve => {
       var options = {
@@ -132,6 +144,7 @@ router.post('/map', function(req, res) {
         }
       };
       request(options, function(err, res, body) {
+        deleteMapFns();
         resolve(JSON.parse(body).output);
       });
     });

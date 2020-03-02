@@ -180,3 +180,32 @@ func getFnStatus(w http.ResponseWriter, r *http.Request) {
 }
 
 func int32Ptr(i int32) *int32 { return &i }
+
+func deleteMapFns(w http.ResponseWriter, r *http.Request) {
+	if r.Method == http.MethodPost {
+		if err := r.ParseForm(); err != nil {
+			http.Error(w, "Could not parse form.", http.StatusBadRequest)
+			return
+		}
+		fnName := r.PostForm.Get("fnName")
+
+		deletePolicy := metav1.DeletePropagationForeground
+
+		config, err := rest.InClusterConfig()
+		if err != nil {
+			panic(err.Error())
+		}
+
+		clientset, err := kubernetes.NewForConfig(config)
+		if err != nil {
+			panic(err.Error())
+		}
+		deploymentsClient := clientset.AppsV1().Deployments(apiv1.NamespaceDefault)
+		_ = deploymentsClient.Delete(fnName, &metav1.DeleteOptions{PropagationPolicy: &deletePolicy})
+		fmt.Println("Deleted deployment.")
+
+		servicesClient := clientset.CoreV1().Services(apiv1.NamespaceDefault)
+		_ = servicesClient.Delete(fnName, &metav1.DeleteOptions{PropagationPolicy: &deletePolicy})
+		fmt.Println("Deleted service.")
+	}
+}
