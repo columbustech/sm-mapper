@@ -41,8 +41,22 @@ class App extends React.Component {
     const cookies = new Cookies();
     var columbus_token = cookies.get('sm_token');
     if (columbus_token !== undefined) {
-      this.setState({isLoggedIn: true});
-      return(null);
+      const cookies = new Cookies();
+      var auth_header = 'Bearer ' + cookies.get('sm_token');
+      const request = axios({
+        method: 'GET',
+        url: `${this.state.specs.cdriveApiUrl}user-details/`,
+        headers: {'Authorization': auth_header}
+      });
+      request.then(
+        response => {
+          this.setState({isLoggedIn: true});
+          return(null);
+        }, err => {
+          cookies.remove('sm_token');
+          window.location.reload(false);
+        }
+      );
     }
     var url_string = window.location.href;
     var url = new URL(url_string);
