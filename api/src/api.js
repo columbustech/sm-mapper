@@ -130,7 +130,15 @@ router.post('/map', function(req, res) {
         }
       };
       request(options, function(err, res, body) {
-        resolve(JSON.parse(body).output);
+        var output = JSON.parse(JSON.parse(body).output).map(tuple => {
+          Object.keys(tuple).forEach(key => {
+            if(typeof(tuple[key]) === "object") {
+              tuple[key] = JSON.stringify(tuple[key]);
+            }
+          });
+          return tuple;
+        });
+        resolve(output);
       });
     });
   }
