@@ -284,21 +284,26 @@ router.post('/map', function(req, res) {
       var tables = values[1].sort((dobj1, dobj2) => {
         return (dobj1.size - dobj2.size);
       });
-      var batchSize = 3 * replicas;
-      var arr = Array.from({length: Math.ceil(tables.length/batchSize)});
-      var batches = arr.map((x,i) => {
-        return tables.slice(i*batchSize, (i+1)*batchSize);
+      var tablePaths = tables.map(x => {
+        return `${inputDir}/${x.name}`;
       });
-      var mapBatches = Promise.resolve();
+      var startingBatch = tablePaths.slice(0, 3*replicas);
+      var inFlight = 3*replicas;
+      var complete = 0;
       var traits = [];
-      batches.forEach(batch => {
-        mapBatches = mapBatches.then(() => mapBatchToContainer(batch)).then(tuples => {
-          traits = traits.concat(tuples);
-        });
-      });
-      mapBatches.then(() => {
-        deleteMapFns();
-        saveLabels(traits, "/output.csv").then(() => uploadToCDrive("/output.csv", outputDir));
+      function mapComplete(values) {
+        complete++;
+        traits = traits.concat(values);
+        if (complete === tablePaths.length) {
+          deleteMapFns();
+          saveLabels(traits, "/output.csv").then(() => uploadToCDrive("/output.csv", outputDir));
+        } else if (inFlight < tablePaths.length) {
+          mapToContainer(tablePaths[inFlight]).then(tuples => mapComplete(tuples));
+          inFlight++;
+        }
+      }
+      startingBatch.forEach(tablePath => {
+        mapToContainer(tablePath).then(tuples => mapComplete(tuples));
       });
     }, err => {
       deleteMapFns();
