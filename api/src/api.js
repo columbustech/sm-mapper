@@ -57,8 +57,8 @@ router.post('/map', function(req, res) {
   });
 
   var repInt = parseInt(replicas, 10);
-  if (!(repInt>0 && repInt<=10)) {
-    setStatus("error", "Replicas should be an integer between 1 and 10");
+  if (!(repInt>0 && repInt<=20)) {
+    setStatus("error", "Replicas should be an integer between 1 and 20");
     return;
   }
 
