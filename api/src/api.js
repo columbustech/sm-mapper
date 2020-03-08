@@ -132,6 +132,34 @@ router.post('/map', function(req, res) {
     });
   }
 
+  function checkOutputFolderPermission(cDrivePath) {
+    return new Promise((resolve, reject) => {
+      var options = {
+        url: `${process.env.CDRIVE_API_URL}list/?path=${cDrivePath}`,
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${accessToken}`,
+        }
+      };
+      request(options, function(err, res, body) {
+        if(err) {
+          setStatus("error", err.toString()).then(reject);
+          return;
+        }
+        if(res.statusCode !== 200) {
+          setStatus("error", "Could not find output directory").then(reject);
+          return;
+        }
+        if (JSON.parse(body).permission != "Edit") {
+          setStatus("error", "You don't have edit permission on output folder");
+          return;
+        } else {
+          resolve();
+        }
+      });
+    });
+  }
+
   function deleteMapFns(){
     var options = {
       url: "http://localhost:8080/delete-map-functions",
@@ -175,10 +203,10 @@ router.post('/map', function(req, res) {
         request(options, function(err, res, body) {
           if (err) {
             console.log(`attemptNo :${attemptNo}, err: ${err}`);
-            setTimeout(() => processInput(attemptNo + 1), 2000);
+            setTimeout(() => processInput(attemptNo + 1), 500);
           } else if(res.statusCode !== 200) {
             console.log(`attemptNo :${attemptNo}, err: ${err}`);
-            setTimeout(() => processInput(attemptNo + 1), 2000);
+            setTimeout(() => processInput(attemptNo + 1), 500);
           } else {
             var output = JSON.parse(JSON.parse(body).output).map(tuple => {
               Object.keys(tuple).forEach(key => {
@@ -251,12 +279,15 @@ router.post('/map', function(req, res) {
   createMapFns(containerUrl).then(() => {
     const p1 = ensureFnActive(fnName);
     const p2 = listCDriveItems(inputDir);
-    Promise.all([p1,p2]).then(values => {
-      var tables = values[1];
-      var arr = Array.from({length: Math.ceil(tables.length/replicas)});
-
+    const p3 = checkOutputFolderPermission(outputDir);
+    Promise.all([p1,p2, p3]).then(values => {
+      var tables = values[1].sort((dobj1, dobj2) => {
+        return (dobj1.size - dobj2.size);
+      });
+      var batchSize = 3 * replicas;
+      var arr = Array.from({length: Math.ceil(tables.length/batchSize)});
       var batches = arr.map((x,i) => {
-        return tables.slice(i*replicas, (i+1)*replicas);
+        return tables.slice(i*batchSize, (i+1)*batchSize);
       });
       var mapBatches = Promise.resolve();
       var traits = [];
