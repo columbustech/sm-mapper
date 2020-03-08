@@ -5,7 +5,6 @@ import (
 	"fmt"
 	appsv1 "k8s.io/api/apps/v1"
 	apiv1 "k8s.io/api/core/v1"
-	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/intstr"
 	"k8s.io/client-go/kubernetes"
@@ -65,7 +64,6 @@ func startContainers(imagePath string, fnName string, replicas int) {
 			Name: fnName,
 		},
 		Spec: appsv1.DeploymentSpec{
-			MinReadySeconds: 5,
 			Replicas:        int32Ptr(rep32),
 			Selector: &metav1.LabelSelector{
 				MatchLabels: map[string]string{
@@ -133,7 +131,7 @@ func startContainers(imagePath string, fnName string, replicas int) {
 	fmt.Printf("Created service %q.\n", serviceResult.GetObjectMeta().GetName())
 }
 
-func isFnRunning(fnName string) bool {
+func FnStatusHelper(fnName string) string {
 	config, err := rest.InClusterConfig()
 	if err != nil {
 		panic(err.Error())
@@ -144,16 +142,20 @@ func isFnRunning(fnName string) bool {
 		panic(err.Error())
 	}
 
-	deploymentResult, err := clientset.AppsV1().Deployments(apiv1.NamespaceDefault).Get(fnName, metav1.GetOptions{})
-	if errors.IsNotFound(err) {
-		fmt.Println("Replicas missing")
-		return false
-	} else if deploymentResult.Status.AvailableReplicas > 0 {
-		fmt.Println("Replicas are available")
-		return true
+	pods, err := clientset.CoreV1().Pods("default").List(metav1.ListOptions{
+		LabelSelector: "name=" + fnName,
+	})
+
+	if items := pods.Items; len(items) == 0 {
+		return "Missing"
+	} else if statuses := items[0].Status.ContainerStatuses; len(statuses) == 0 {
+		return "Missing"
+	} else if v := statuses[0].State; v.Running != nil {
+		return "Running"
+	} else if v.Waiting != nil && (v.Waiting.Reason == "ErrImagePull" || v.Waiting.Reason=="ImagePullBackOff") {
+		return "Error"
 	} else {
-		fmt.Println("Replicas were not available")
-		return false
+		return "Missing"
 	}
 }
 
@@ -163,20 +165,11 @@ type FnStatus struct {
 
 func getFnStatus(w http.ResponseWriter, r *http.Request) {
 	fnName := r.URL.Query().Get("fnName")
-
 	w.Header().Set("Content-Type", "application/json")
-
-	if isFnRunning(fnName) {
-		fn_status := FnStatus{
-			Status: "Running",
-		}
-		json.NewEncoder(w).Encode(fn_status)
-	} else {
-		fn_status := FnStatus{
-			Status: "Missing",
-		}
-		json.NewEncoder(w).Encode(fn_status)
+	fn_status := FnStatus{
+		Status: FnStatusHelper(fnName),
 	}
+	json.NewEncoder(w).Encode(fn_status)
 }
 
 func int32Ptr(i int32) *int32 { return &i }

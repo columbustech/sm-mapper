@@ -16,6 +16,7 @@ class App extends React.Component {
       fnStatus: "none",
       fnStatusPollId: 0,
       specs: {},
+      errorMsg: ""
     };
     this.getSpecs = this.getSpecs.bind(this);
     this.authenticateUser = this.authenticateUser.bind(this);
@@ -130,6 +131,12 @@ class App extends React.Component {
           this.setState({
             fnStatus: "complete"
           });
+        } else if (response.data.fnStatus === "error") {
+          clearInterval(this.state.fnStatusPollId);
+          this.setState({
+            fnStatus: "error",
+            errorMsg: response.data.message
+          });
         }
       },
     );
@@ -165,6 +172,14 @@ class App extends React.Component {
           </div>
         );
       }
+      let errorMsg;
+      if(this.state.fnStatus === "error") {
+        errorMsg = (
+          <div className="h5 mt-3 font-weight-normal map-form-item err-msg">
+            Error: {this.state.errorMsg}
+          </div>
+        );
+      }
       return(
         <div className="app-container">
           <div className="map-form-container">
@@ -178,6 +193,7 @@ class App extends React.Component {
               value={this.state.replicas} onChange={this.handleReplicasChange} />
             {mapButton}
             {cdriveLink}
+            {errorMsg}
           </div>
         </div>
       );

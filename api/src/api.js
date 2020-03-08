@@ -44,7 +44,6 @@ router.post('/map', function(req, res) {
 
   var uid = [...Array(10)].map(i=>(~~(Math.random()*36)).toString(36)).join('');
 
-
   var fnName = `mapfn-${process.env.COLUMBUS_USERNAME}-${uid}`;
 
   mongo.connect(mongoUrl, function(err, client) {
@@ -56,6 +55,12 @@ router.post('/map', function(req, res) {
       });
     });
   });
+
+  var repInt = parseInt(replicas, 10);
+  if (!(repInt>0 && repInt<=10)) {
+    setStatus("error", "Replicas should be an integer between 1 and 10");
+    return;
+  }
 
   function createMapFns(mapfnUrl) {
     return new Promise(resolve => {
@@ -75,15 +80,18 @@ router.post('/map', function(req, res) {
   }
 
   function ensureFnActive(fnName) {
-    return new Promise(resolve => {
+    return new Promise((resolve, reject) => {
       (function waitForContainer() {
         var options = {
           url: `http://localhost:8080/fn-status?fnName=${fnName}`,
           method: "GET",
         };
         request(options, function(err, res, body) {
-          if(JSON.parse(body).fnStatus === "Running") {
+          var containerStatus = JSON.parse(body).fnStatus;
+          if(containerStatus === "Running") {
             resolve(true);
+          } else if (containerStatus === "Error") {
+            setStatus("error", "Could not create map function containers").then(reject);
           } else {
             setTimeout(waitForContainer, 500);
           }
@@ -93,7 +101,7 @@ router.post('/map', function(req, res) {
   }
 
   function listCDriveItems(cDrivePath) {
-    return new Promise(resolve => {
+    return new Promise((resolve, reject) => {
       var options = {
         url: `${process.env.CDRIVE_API_URL}list-recursive/?path=${cDrivePath}`,
         method: 'GET',
@@ -102,7 +110,24 @@ router.post('/map', function(req, res) {
         }
       };
       request(options, function(err, res, body) {
-        resolve(JSON.parse(body).driveObjects);
+        if(err) {
+          setStatus("error", err.toString()).then(reject);
+          return;
+        }
+        if(res.statusCode !== 200) {
+          setStatus("error", "Could not find input directory").then(reject);
+          return;
+        }
+        var driveObjects = JSON.parse(body).driveObjects;
+        if (driveObjects.length === 0) {
+          setStatus("error", "No files inside input directory").then(reject);
+        } else if (driveObjects.find(element => {
+          return (element.type !== "File")
+        })) {
+          setStatus("error", "Input directory should only contain files").then(reject);
+        } else {
+          resolve(JSON.parse(body).driveObjects);
+        }
       });
     });
   }
@@ -119,27 +144,55 @@ router.post('/map', function(req, res) {
     });
   }
 
-  function mapToContainer(inputFilePath) {
+  function setStatus(execStatus, msg) {
     return new Promise(resolve => {
-      var options = {
-        url: `http://${fnName}/process/`,
-        method: "POST",
-        form: {
-          downloadUrl: `${process.env.CDRIVE_API_URL}download/?path=${inputFilePath}`,
-          accessToken: accessToken
+      mongo.connect(mongoUrl, function(connectErr, client) {
+        const db = client.db('mapper');
+        const taskCollection = db.collection('mapfns');
+        var updateDoc = {fnStatus: execStatus};
+        if (msg) {
+          updateDoc.message = msg;
         }
-      };
-      request(options, function(err, res, body) {
-        var output = JSON.parse(JSON.parse(body).output).map(tuple => {
-          Object.keys(tuple).forEach(key => {
-            if(typeof(tuple[key]) === "object") {
-              tuple[key] = JSON.stringify(tuple[key]);
-            }
-          });
-          return tuple;
+        taskCollection.updateOne({uid: uid}, {$set: updateDoc}, function(upErr, upRes) {
+          client.close();
+          resolve();
         });
-        resolve(output);
       });
+    });
+  }
+
+  function mapToContainer(inputFilePath) {
+    return new Promise((resolve, reject) => {
+      function processInput(attemptNo) {
+        var options = {
+          url: `http://${fnName}/process/`,
+          method: "POST",
+          form: {
+            downloadUrl: `${process.env.CDRIVE_API_URL}download/?path=${inputFilePath}`,
+            accessToken: accessToken
+          }
+        };
+        request(options, function(err, res, body) {
+          if (err) {
+            console.log(`attemptNo :${attemptNo}, err: ${err}`);
+            setTimeout(() => processInput(attemptNo + 1), 2000);
+          } else if(res.statusCode !== 200) {
+            console.log(`attemptNo :${attemptNo}, err: ${err}`);
+            setTimeout(() => processInput(attemptNo + 1), 2000);
+          } else {
+            var output = JSON.parse(JSON.parse(body).output).map(tuple => {
+              Object.keys(tuple).forEach(key => {
+                if(typeof(tuple[key]) === "object") {
+                  tuple[key] = JSON.stringify(tuple[key]);
+                }
+              });
+              return tuple;
+            });
+            resolve(output);
+          }
+        });
+      }
+      processInput(1);
     });
   }
 
@@ -182,21 +235,42 @@ router.post('/map', function(req, res) {
     });
     return csvWriter.writeRecords(results);
   }
-  
+
+  function mapBatchToContainer(tablesBatch) {
+    return new Promise(resolve => {
+      const promises = [];
+      tablesBatch.forEach(dobj => {
+        promises.push(mapToContainer(`${inputDir}/${dobj.name}`));
+      });                                                                                                               
+      Promise.all(promises).then(values => {
+        resolve(values.flat());
+      });
+    });                                                                                                               
+  }
 
   createMapFns(containerUrl).then(() => {
     const p1 = ensureFnActive(fnName);
     const p2 = listCDriveItems(inputDir);
-    const promises = [];
     Promise.all([p1,p2]).then(values => {
       var tables = values[1];
-      tables.forEach(dobj => {
-        promises.push(mapToContainer(`${inputDir}/${dobj.name}`));
+      var arr = Array.from({length: Math.ceil(tables.length/replicas)});
+
+      var batches = arr.map((x,i) => {
+        return tables.slice(i*replicas, (i+1)*replicas);
       });
-      Promise.all(promises).then(values => {
+      var mapBatches = Promise.resolve();
+      var traits = [];
+      batches.forEach(batch => {
+        mapBatches = mapBatches.then(() => mapBatchToContainer(batch)).then(tuples => {
+          traits = traits.concat(tuples);
+        });
+      });
+      mapBatches.then(() => {
         deleteMapFns();
-        saveLabels(values.flat(), "/output.csv").then(() => uploadToCDrive("/output.csv", outputDir));
+        saveLabels(traits, "/output.csv").then(() => uploadToCDrive("/output.csv", outputDir));
       });
+    }, err => {
+      deleteMapFns();
     });
   });
 });
@@ -207,9 +281,11 @@ router.get('/status', function(req, res) {
     const db = client.db('mapper');
     const collection = db.collection('mapfns');
     collection.findOne({uid: uid}, function(findErr, doc) {
-      res.json({
-        fnStatus: doc.fnStatus
-      });
+      returnDoc = { fnStatus: doc.fnStatus };
+      if (doc.message) {
+        returnDoc.message = doc.message;
+      }
+      res.json(returnDoc);
     });
   });
 });
