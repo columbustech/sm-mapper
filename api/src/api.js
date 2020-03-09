@@ -54,6 +54,7 @@ router.post('/map', function(req, res) {
         uid: uid
       });
     });
+    client.close();
   });
 
   var repInt = parseInt(replicas, 10);
@@ -182,8 +183,8 @@ router.post('/map', function(req, res) {
           updateDoc.message = msg;
         }
         taskCollection.updateOne({uid: uid}, {$set: updateDoc}, function(upErr, upRes) {
-          client.close();
           resolve();
+          client.close();
         });
       });
     });
@@ -323,6 +324,7 @@ router.get('/status', function(req, res) {
       }
       res.json(returnDoc);
     });
+    client.close();
   });
 });
 
