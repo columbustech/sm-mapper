@@ -53,8 +53,8 @@ router.post('/map', function(req, res) {
       res.json({
         uid: uid
       });
+      client.close();
     });
-    client.close();
   });
 
   var repInt = parseInt(replicas, 10);
@@ -205,6 +205,8 @@ router.post('/map', function(req, res) {
           if (err) {
             console.log(`attemptNo :${attemptNo}, err: ${err}`);
             setTimeout(() => processInput(attemptNo + 1), 500);
+          } else if(res.statusCode === 500) {
+            collectLogs().then(() => setStatus("error", "Map function crashed")).then(() => deleteMapFns());;
           } else if(res.statusCode !== 200) {
             console.log(`attemptNo :${attemptNo}, err: ${err}`);
             setTimeout(() => processInput(attemptNo + 1), 500);
@@ -222,6 +224,44 @@ router.post('/map', function(req, res) {
         });
       }
       processInput(1);
+    });
+  }
+
+  function collectLogs() {
+    return new Promise(resolve => {
+      mongo.connect(mongoUrl, function(connectErr, client) {
+        const db = client.db('mapper');
+        const collection = db.collection('mapfns');
+        collection.findOne({uid: uid}, function(findErr, doc) {
+          if (doc.fnStatus === "executing") {
+            requestLogs().then(logs => {
+              var updateDoc = doc;
+              updateDoc.logs = logs;
+              collection.updateOne({uid: uid}, {$set: updateDoc}, function(upErr, upRes) {
+                console.log(upErr);
+                resolve();
+                client.close();
+              });
+            });
+          } else {
+            client.close();
+          }
+        });
+      });
+    });
+  }
+
+  function requestLogs() {
+    return new Promise(resolve => {
+      var options = {
+        url: `http://localhost:8080/logs?fnName=${fnName}`,
+        method: "GET",
+      };
+      request(options, function(err, res, body) {
+        console.log(res.statusCode);
+        var logs = JSON.parse(body);
+        resolve(logs);
+      });
     });
   }
 
@@ -322,9 +362,29 @@ router.get('/status', function(req, res) {
       if (doc.message) {
         returnDoc.message = doc.message;
       }
+      if (doc.logs) {
+        returnDoc.logs = "Y";
+      }
       res.json(returnDoc);
+      client.close();
     });
-    client.close();
+  });
+});
+
+router.get('/logs', function(req, res) {
+  var uid = req.query.uid;
+  var replicaNo = req.query.replicaNo;
+  mongo.connect(mongoUrl, function(connectErr, client) {
+    const db = client.db('mapper');
+    const collection = db.collection('mapfns');
+    collection.findOne({uid: uid}, function(findErr, doc) {
+      if (doc.logs) {
+        res.json({logs: logs[replicaNo]});
+      } else {
+        res.json({logs: "No logs available for this replicas"});
+      }
+      client.close();
+    });
   });
 });
 

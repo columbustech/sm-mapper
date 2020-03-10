@@ -12,6 +12,8 @@ import (
 	"net/http"
 	"strconv"
 	"strings"
+	"bytes"
+	"io"
 )
 
 func getNoOfPods(w http.ResponseWriter, r *http.Request) {
@@ -201,4 +203,38 @@ func deleteMapFns(w http.ResponseWriter, r *http.Request) {
 		_ = servicesClient.Delete(fnName, &metav1.DeleteOptions{PropagationPolicy: &deletePolicy})
 		fmt.Println("Deleted service.")
 	}
+}
+
+func getLogs(w http.ResponseWriter, r *http.Request) {
+	fnName := r.URL.Query().Get("fnName")
+	config, err := rest.InClusterConfig()
+	if err != nil {
+		panic(err.Error())
+	}
+
+	clientset, err := kubernetes.NewForConfig(config)
+	if err != nil {
+		panic(err.Error())
+	}
+
+	pods, err := clientset.CoreV1().Pods("default").List(metav1.ListOptions{
+		LabelSelector: "name=" + fnName,
+	})
+	logs := make([]string, len(pods.Items))
+	for index, pod := range pods.Items {
+		podLogOpts := apiv1.PodLogOptions{}
+		req := clientset.CoreV1().Pods(pod.Namespace).GetLogs(pod.Name, &podLogOpts)
+		podLogs, err := req.Stream()
+		if err != nil {
+			panic(err.Error())
+		}
+		defer podLogs.Close()
+		buf := new(bytes.Buffer)
+		_, err = io.Copy(buf, podLogs)
+		if err != nil {
+			panic(err.Error())
+		}
+		logs[index] = buf.String()
+	}
+	json.NewEncoder(w).Encode(logs)
 }
