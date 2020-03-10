@@ -2,6 +2,7 @@ import React from 'react';
 import Cookies from 'universal-cookie';
 import axios from 'axios';
 import './App.css';
+import ConsoleOutput from './ConsoleOutput';
 
 class App extends React.Component {
   constructor(props) {
@@ -16,7 +17,9 @@ class App extends React.Component {
       fnStatus: "none",
       fnStatusPollId: 0,
       specs: {},
-      errorMsg: ""
+      errorMsg: "",
+      logs: false,
+      showLogs: false
     };
     this.getSpecs = this.getSpecs.bind(this);
     this.authenticateUser = this.authenticateUser.bind(this);
@@ -26,6 +29,7 @@ class App extends React.Component {
     this.handleReplicasChange = this.handleReplicasChange.bind(this);
     this.handleMap = this.handleMap.bind(this);
     this.fnStatusPoll = this.fnStatusPoll.bind(this);
+    this.showLogsPage = this.showLogsPage.bind(this);
   }
   getSpecs() {
     const request = axios({
@@ -58,6 +62,7 @@ class App extends React.Component {
           window.location.reload(false);
         }
       );
+      return (null);
     }
     var url_string = window.location.href;
     var url = new URL(url_string);
@@ -135,11 +140,17 @@ class App extends React.Component {
           clearInterval(this.state.fnStatusPollId);
           this.setState({
             fnStatus: "error",
-            errorMsg: response.data.message
+            errorMsg: response.data.message,
+            logs: (response.data.logs === "Y")
           });
         }
       },
     );
+  }
+  showLogsPage() {
+    this.setState({
+      showLogs: true
+    });
   }
   render() {
     if (Object.keys(this.state.specs).length === 0) {
@@ -148,6 +159,10 @@ class App extends React.Component {
     } else if (!this.state.isLoggedIn) {
       this.authenticateUser();
       return(null);
+    } else if(this.state.showLogs) {
+      return (
+        <ConsoleOutput specs={this.state.specs} uid={this.state.uid} replicas={this.state.replicas} />
+      );
     } else {
       let mapButton;
       if (this.state.fnStatus === "executing") {
@@ -168,7 +183,7 @@ class App extends React.Component {
       if(this.state.fnStatus === "complete") {
         cdriveLink = (
           <div className="h5 mt-3 font-weight-normal map-form-item">
-            Output saved! <a href={this.state.specs.cdriveUrl}> View in CDrive </a>
+            Output saved! <a href={this.state.specs.cdriveUrl}> View {"in"} CDrive </a>
           </div>
         );
       }
@@ -179,6 +194,16 @@ class App extends React.Component {
             Error: {this.state.errorMsg}
           </div>
         );
+      }
+      let logsLink;
+      if(this.state.logs) {
+        logsLink = (
+          <div className="h5 mt-3 font-weight-normal map-form-item">
+            <button className="btn btn-link" onClick={this.showLogsPage}>
+              <span className="h5 font-weight-normal">View logs</span>
+            </button>
+          </div>
+        ); 
       }
       return(
         <div className="app-container">
@@ -194,6 +219,7 @@ class App extends React.Component {
             {mapButton}
             {cdriveLink}
             {errorMsg}
+            {logsLink}
           </div>
         </div>
       );

@@ -373,13 +373,13 @@ router.get('/status', function(req, res) {
 
 router.get('/logs', function(req, res) {
   var uid = req.query.uid;
-  var replicaNo = req.query.replicaNo;
+  var replicaNo = parseInt(req.query.replicaNo);
   mongo.connect(mongoUrl, function(connectErr, client) {
     const db = client.db('mapper');
     const collection = db.collection('mapfns');
     collection.findOne({uid: uid}, function(findErr, doc) {
       if (doc.logs) {
-        res.json({logs: logs[replicaNo]});
+        res.json({logs: doc.logs[replicaNo]});
       } else {
         res.json({logs: "No logs available for this replicas"});
       }
