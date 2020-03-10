@@ -29,7 +29,7 @@ class App extends React.Component {
     this.handleReplicasChange = this.handleReplicasChange.bind(this);
     this.handleMap = this.handleMap.bind(this);
     this.fnStatusPoll = this.fnStatusPoll.bind(this);
-    this.showLogsPage = this.showLogsPage.bind(this);
+    this.toggleLogsPage = this.toggleLogsPage.bind(this);
   }
   getSpecs() {
     const request = axios({
@@ -147,9 +147,9 @@ class App extends React.Component {
       },
     );
   }
-  showLogsPage() {
+  toggleLogsPage() {
     this.setState({
-      showLogs: true
+      showLogs: !this.state.showLogs
     });
   }
   render() {
@@ -161,7 +161,7 @@ class App extends React.Component {
       return(null);
     } else if(this.state.showLogs) {
       return (
-        <ConsoleOutput specs={this.state.specs} uid={this.state.uid} replicas={this.state.replicas} />
+        <ConsoleOutput specs={this.state.specs} uid={this.state.uid} replicas={this.state.replicas} toggle={this.toggleLogsPage} />
       );
     } else {
       let mapButton;
@@ -187,23 +187,22 @@ class App extends React.Component {
           </div>
         );
       }
-      let errorMsg;
-      if(this.state.fnStatus === "error") {
-        errorMsg = (
-          <div className="h5 mt-3 font-weight-normal map-form-item err-msg">
-            Error: {this.state.errorMsg}
-          </div>
-        );
-      }
       let logsLink;
       if(this.state.logs) {
         logsLink = (
-          <div className="h5 mt-3 font-weight-normal map-form-item">
-            <button className="btn btn-link" onClick={this.showLogsPage}>
-              <span className="h5 font-weight-normal">View logs</span>
-            </button>
-          </div>
+          <button className="btn btn-info btn-sm ml-2" onClick={this.toggleLogsPage}>
+            <span className="h5 font-weight-normal">View logs</span>
+          </button>
         ); 
+      }
+      let errorMsg;
+      if(this.state.fnStatus === "error") {
+        errorMsg = (
+          <div className="mt-3 map-form-item">
+            <span className="h5 font-weight-normal err-msg">Error: {this.state.errorMsg}</span>
+            {logsLink}
+          </div>
+        );
       }
       return(
         <div className="app-container">
@@ -219,7 +218,6 @@ class App extends React.Component {
             {mapButton}
             {cdriveLink}
             {errorMsg}
-            {logsLink}
           </div>
         </div>
       );

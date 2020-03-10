@@ -72,6 +72,11 @@ class ConsoleOutput extends React.Component {
           <div className="terminal-output">
             {lines}
           </div>
+          <div className="navigation-options">
+            <button className="btn btn-primary btn-lg" onClick={() => this.props.toggle()} >
+              Go Back
+            </button>
+          </div>
         </div>
       );
     }
