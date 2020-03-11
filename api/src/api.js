@@ -119,15 +119,28 @@ router.post('/map', function(req, res) {
           setStatus("error", "Could not find input directory").then(reject);
           return;
         }
+        var tablePaths = []
         var driveObjects = JSON.parse(body).driveObjects;
-        if (driveObjects.length === 0) {
+        function getPathsRecursive(dobj) {
+          dobj.children.forEach(cdobj => {
+            if(cdobj.type === "Folder") {
+              getPathsRecursive(cdobj);
+            } else if (cdobj.type === "File") {
+              tablePaths.push(cdobj.path);
+            }
+          });
+        }
+        driveObjects.forEach(dobj => {
+          if(dobj.type == "Folder") {
+            getPathsRecursive(dobj);
+          } else {
+            tablePaths.push(dobj.path);
+          }
+        });
+        if (tablePaths.length === 0) {
           setStatus("error", "No files inside input directory").then(reject);
-        } else if (driveObjects.find(element => {
-          return (element.type !== "File")
-        })) {
-          setStatus("error", "Input directory should only contain files").then(reject);
         } else {
-          resolve(JSON.parse(body).driveObjects);
+          resolve(tablePaths);
         }
       });
     });
@@ -322,12 +335,7 @@ router.post('/map', function(req, res) {
     const p2 = listCDriveItems(inputDir);
     const p3 = checkOutputFolderPermission(outputDir);
     Promise.all([p1,p2, p3]).then(values => {
-      var tables = values[1].sort((dobj1, dobj2) => {
-        return (dobj1.size - dobj2.size);
-      });
-      var tablePaths = tables.map(x => {
-        return `${inputDir}/${x.name}`;
-      });
+      var tablePaths = values[1];
       var startingBatch = tablePaths.slice(0, 3*replicas);
       var inFlight = 3*replicas;
       var complete = 0;
