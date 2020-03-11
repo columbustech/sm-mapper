@@ -190,7 +190,7 @@ class App extends React.Component {
       let logsLink;
       if(this.state.logs) {
         logsLink = (
-          <button className="btn btn-info btn-sm ml-2" onClick={this.toggleLogsPage}>
+          <button className="btn btn-danger btn-sm ml-2" onClick={this.toggleLogsPage}>
             <span className="h5 font-weight-normal">View logs</span>
           </button>
         ); 
@@ -199,7 +199,7 @@ class App extends React.Component {
       if(this.state.fnStatus === "error") {
         errorMsg = (
           <div className="mt-3 map-form-item">
-            <span className="h5 font-weight-normal err-msg">Error: {this.state.errorMsg}</span>
+            <span className="h5 font-weight-normal text-danger">Error: {this.state.errorMsg}</span>
             {logsLink}
           </div>
         );
