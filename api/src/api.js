@@ -310,6 +310,13 @@ router.post('/map', function(req, res) {
   }
 
   function saveLabels(results, localPath) {
+    results = results.map((result, i) => {
+      let newRes = {
+        id: i+1,
+        ...result
+      };
+      return newRes;
+    });
     var header = Object.keys(results[0]).map(colName => ({id: colName, title: colName})); 
     const csvWriter = createCsvWriter({
       path: localPath,

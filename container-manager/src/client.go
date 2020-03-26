@@ -6,6 +6,7 @@ import (
 	appsv1 "k8s.io/api/apps/v1"
 	apiv1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/api/resource"
 	"k8s.io/apimachinery/pkg/util/intstr"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
@@ -90,6 +91,11 @@ func startContainers(imagePath string, fnName string, replicas int) {
 									ContainerPort: 8000,
 								},
 							},
+							Resources: apiv1.ResourceRequirements{
+								Requests: apiv1.ResourceList{
+									apiv1.ResourceCPU: resource.MustParse("1"),
+								},
+							},
 						},
 					},
 				},
@@ -153,8 +159,13 @@ func FnStatusHelper(fnName string) string {
 	} else if statuses := items[0].Status.ContainerStatuses; len(statuses) == 0 {
 		return "Missing"
 	} else if v := statuses[0].State; v.Running != nil {
+		for _,item := range items {
+			if item.Status.ContainerStatuses[0].State.Running == nil {
+				return "Missing"
+			}
+		}
 		return "Running"
-	} else if v.Waiting != nil && (v.Waiting.Reason == "ErrImagePull" || v.Waiting.Reason=="ImagePullBackOff") {
+	} else if v.Waiting != nil && (v.Waiting.Reason == "ErrImagePull" || v.Waiting.Reason=="ImagePullBackOff" || v.Waiting.Reason=="CrashLoopBackOff") {
 		return "Error"
 	} else {
 		return "Missing"
