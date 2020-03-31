@@ -36,7 +36,7 @@ router.post('/access-token', function(req, res) {
 });
 
 router.post('/map', function(req, res) {
-  var accessToken = req.body.accessToken;
+  var accessToken = req.headers["authorization"].split(" ")[1];
   var inputDir = req.body.inputDir;
   var containerUrl = req.body.containerUrl;
   var outputDir = req.body.outputDir;

@@ -104,6 +104,7 @@ class App extends React.Component {
   handleMap() {
     this.setState({fnStatus: "executing"});
     const cookies = new Cookies();
+
     const request = axios({
       method: 'POST',
       url: `${this.state.specs.cdriveUrl}app/${this.state.specs.username}/sm-mapper/api/map`,
@@ -111,8 +112,10 @@ class App extends React.Component {
         inputDir: this.state.inputDir,
         containerUrl: this.state.containerUrl,
         outputDir: this.state.outputDir,
-        replicas: this.state.replicas,
-        accessToken: cookies.get('sm_token')
+        replicas: this.state.replicas
+      },
+      headers: {
+        'Authorization': `Bearer ${cookies.get('sm_token')}`,
       }
     });
     request.then(
