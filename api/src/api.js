@@ -121,20 +121,20 @@ router.post('/map', function(req, res) {
         }
         var tablePaths = []
         var driveObjects = JSON.parse(body).driveObjects;
-        function getPathsRecursive(dobj) {
+        function getPathsRecursive(dobj, dpath) {
           dobj.children.forEach(cdobj => {
             if(cdobj.type === "Folder") {
-              getPathsRecursive(cdobj);
+              getPathsRecursive(cdobj, dpath + cdobj.name + "/");
             } else if (cdobj.type === "File") {
-              tablePaths.push(cdobj.path);
+              tablePaths.push(dpath + cdobj.name);
             }
           });
         }
         driveObjects.forEach(dobj => {
           if(dobj.type == "Folder") {
-            getPathsRecursive(dobj);
+            getPathsRecursive(dobj, dobj.name + "/");
           } else {
-            tablePaths.push(dobj.path);
+            tablePaths.push(dobj.name);
           }
         });
         if (tablePaths.length === 0) {
@@ -210,7 +210,8 @@ router.post('/map', function(req, res) {
           url: `http://${fnName}/process/`,
           method: "POST",
           form: {
-            downloadUrl: `${process.env.CDRIVE_API_URL}download/?path=${inputFilePath}`,
+            downloadUrl: `${process.env.CDRIVE_API_URL}download/?path=${inputDir}/${inputFilePath}`,
+            filePath: inputFilePath,
             accessToken: accessToken
           }
         };
